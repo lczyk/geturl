@@ -11,9 +11,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Generator, Mapping
-from typing import Any, Callable, NoReturn, Optional, Protocol, TypeVar, Union, cast, overload
+from functools import partial
+from typing import TYPE_CHECKING, Any, Callable, NoReturn, Optional, Protocol, TypeVar, Union, cast, overload
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 logger = logging.getLogger("geturl")
 
@@ -164,11 +165,24 @@ def _get_with_retry(
 class _MemorizedFunc(Protocol):
     def call(self, *args: Any, **kwargs: Any) -> Any: ...
 
+    """Force the execution of the function with the given arguments.
+
+    The output values will be persisted, i.e., the cache will be updated
+    with any new values."""
+
     def __call__(self, *args: Any, **kwargs: Any) -> Any: ...
+
+    """Return the output values from the cache, if they exist."""
 
 
 class MemoryProtocol(Protocol):
-    def cache(self, fun: Callable) -> _MemorizedFunc: ...
+    def cache(self, func: Callable) -> Union[_MemorizedFunc, partial]: ...
+
+
+if TYPE_CHECKING:
+    from joblib import Memory
+
+    _memory: MemoryProtocol = Memory()
 
 
 def get_with_retry(
@@ -187,7 +201,10 @@ def get_with_retry(
         memoized_fun = memory.cache(_get_with_retry)
         if refresh_cache:
             # don't use memoized version. just call get directly. this will also refresh the cached version
-            (response, code), _ = memoized_fun.call(url, params, n_retries, retry_delay, max_delay)
+            if isinstance(memoized_fun, partial):
+                response, code = memoized_fun.func(url, params, n_retries, retry_delay, max_delay)
+            else:
+                (response, code), _ = memoized_fun.call(url, params, n_retries, retry_delay, max_delay)
         else:
             response, code = memoized_fun(url, params, n_retries, retry_delay, max_delay)
         assert isinstance(response, bytes), f"Expected bytes, got {type(response)}"
@@ -207,26 +224,47 @@ class Slice:
     start: int
     stop: int
 
-    def __init__(self, start: int, stop: int) -> None:
-        self.start = start
-        self.stop = stop
+    @overload
+    def __init__(self, start: int, stop: int) -> None: ...
+
+    @overload
+    def __init__(self, start: slice) -> None: ...
+
+    @overload
+    def __init__(self, start: "Slice") -> None: ...
+
+    def __init__(self, start: Union[int, slice, "Slice"], stop: Optional[int] = None) -> None:
+        if stop is not None:
+            if not isinstance(start, int):
+                raise TypeError("Expected int for start, got {type(s)}")
+            self.start = start
+            self.stop = stop
+
+        elif isinstance(start, slice):
+            if start.step is not None:
+                raise ValueError("Slice with step not supported")
+
+            self.start = start.start
+            self.stop = start.stop
+
+        elif isinstance(start, Slice):
+            # Copy constructor
+            self.start = start.start
+            self.stop = start.stop
+
+        else:
+            raise TypeError("Expected int or slice for start, got {type(s)}")
 
     def __contains__(self, item: int) -> bool:
         return item >= self.start and item < self.stop
-
-    @classmethod
-    def from_slice(cls, s: slice) -> "Slice":
-        if s.step is not None:
-            raise ValueError("Slice with step not supported")
-        return cls(s.start, s.stop)
 
 
 ALL_CODES = cast(int, object())
 """A sentinel value to indicate that the handler should be called for all codes."""
 
 
-def _raise(error: Exception) -> NoReturn:
-    raise error
+def _connection_error(s: str) -> NoReturn:
+    raise ConnectionError(s)
 
 
 _T_HandlerReturn = TypeVar("_T_HandlerReturn", covariant=True)
@@ -240,13 +278,13 @@ DEFAULT_HANDLERS: Handlers[None] = {
     # Success of some other kind
     Slice(200, 300): lambda _c, _r: None,
     # Too many requests
-    429: lambda _c, _r: _raise(ConnectionError("Too many requests")),
+    429: lambda _c, _r: _connection_error("Too many requests"),
     # Not implemented
-    501: lambda _c, _r: _raise(ConnectionError("Got HTTP Error 501 (not implemented)")),
+    501: lambda _c, _r: _connection_error("Got HTTP Error 501 (not implemented)"),
     # Any other error with code in error range
-    Slice(100, 600): lambda code, _r: _raise(ConnectionError(f"Got HTTP Error {code}")),
+    Slice(100, 600): lambda code, _r: _connection_error(f"Got HTTP Error {code}"),
     # Any other error
-    ALL_CODES: lambda code, _r: _raise(ConnectionError(f"Unexpected HTTP Error {code}")),
+    ALL_CODES: lambda code, _r: _connection_error(f"Unexpected HTTP Error {code}"),
 }
 
 
@@ -283,8 +321,10 @@ def handle_code(
         if isinstance(key, int) and code == key:
             return handler(code, response)
 
-        if isinstance(key, Slice) and code in key:
-            return handler(code, response)
+        if isinstance(key, (slice, Slice)):
+            key = Slice(key)
+            if code in key:
+                return handler(code, response)
 
         if key == ALL_CODES:
             return handler(code, response)
