@@ -55,7 +55,6 @@ local_partial_types = true
 files = [
     "./src/**/*.py",
     "./tests/**/*.py",
-    # "./example/**/*.py",
     #
 ]
 

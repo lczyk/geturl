@@ -316,6 +316,22 @@ DEFAULT_HANDLERS: Handlers[None] = {
 
 
 @overload
+def handle_code(code: int) -> None: ...
+
+
+@overload
+def handle_code(code: int, *, handlers: None = None) -> None: ...
+
+
+@overload
+def handle_code(code: int, *, handlers: Handlers[_T_HandlerReturn]) -> _T_HandlerReturn: ...
+
+
+@overload
+def handle_code(code: int, response: Optional[bytes]) -> None: ...
+
+
+@overload
 def handle_code(code: int, response: Optional[bytes], handlers: None = None) -> None: ...
 
 
