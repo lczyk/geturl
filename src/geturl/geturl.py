@@ -1,6 +1,11 @@
 """
 Single-file module for making GET requests with retries and exponential backoff.
 
+This is a single-file module. It does not depend on any other files or external packages.
+Its version is tracked internally in a separate repository. It can be used as a package,
+or the file can be copied into a project and used directly. In the latter case, any
+bugs/updates ought to be copied back to the original repository.
+
 Written by Marcin Konowalczyk.
 """
 
