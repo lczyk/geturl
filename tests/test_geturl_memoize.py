@@ -1,4 +1,5 @@
 import time
+from collections.abc import Iterator
 
 import pytest
 from geturl import geturl_with_retry
@@ -16,8 +17,14 @@ except ImportError:
 
 
 @pytest.fixture
-def memory() -> joblib.Memory:
-    return joblib.Memory("_test_memory", verbose=0)
+def memory() -> Iterator[joblib.Memory]:
+    import pathlib
+
+    memory_location = pathlib.Path(__file__).parent / "_test_memory"
+    yield joblib.Memory(memory_location, verbose=0)
+    import shutil
+
+    shutil.rmtree(memory_location)
 
 
 class Timer:

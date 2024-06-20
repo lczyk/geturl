@@ -64,10 +64,9 @@ def add_params_to_url(url: str, params: Optional[Mapping[str, Any]] = None) -> s
 
 
 def geturl(url: str, params: Optional[Mapping[str, Any]] = None) -> tuple[bytes, int]:
-    url = add_params_to_url(url, params)
+    """Make a GET request to a URL and return the response and status code."""
 
-    code: int
-    res: bytes
+    url = add_params_to_url(url, params)
 
     try:
         with urllib.request.urlopen(url) as r:
