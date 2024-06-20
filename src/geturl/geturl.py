@@ -4,6 +4,8 @@ Single-file module for making GET requests with retries and exponential backoff.
 Written by Marcin Konowalczyk.
 """
 
+__version__ = "0.3.0"
+
 import logging
 import time
 import urllib
@@ -14,25 +16,25 @@ from collections.abc import Generator, Mapping
 from functools import partial
 from typing import TYPE_CHECKING, Any, Callable, NoReturn, Optional, Protocol, TypeVar, Union, cast, overload
 
-__version__ = "0.2.1"
+GETURL_LOGGER = logging.getLogger("geturl")
+"""Logger for this module."""
 
-logger = logging.getLogger("geturl")
-
-GET_N_RETRIES = 10
+GETURL_N_RETRIES = 10
 """Number of times to retry a GET request before giving up."""
 
-GET_DELAY = 1.0  # s
+GETURL_DELAY = 1.0  # s
 """Initial delay between GET requests, in milliseconds."""
 
-GET_MAX_DELAY = 30.0  # s
+GETURL_MAX_DELAY = 30.0  # s
 """Maximum delay between GET requests, in milliseconds."""
 
 __all__ = [
-    "get",
-    "get_with_retry",
-    "GET_N_RETRIES",
-    "GET_DELAY",
-    "GET_MAX_DELAY",
+    "geturl",
+    "geturl_with_retry",
+    "GETURL_N_RETRIES",
+    "GETURL_DELAY",
+    "GETURL_MAX_DELAY",
+    "GETURL_LOGGER",
     "add_params_to_url",
     "exponential_backoff",
     "handle_code",
@@ -61,7 +63,7 @@ def add_params_to_url(url: str, params: Optional[Mapping[str, Any]] = None) -> s
     return url + "?" + urllib.parse.urlencode(params)
 
 
-def get(url: str, params: Optional[Mapping[str, Any]] = None) -> tuple[bytes, int]:
+def geturl(url: str, params: Optional[Mapping[str, Any]] = None) -> tuple[bytes, int]:
     url = add_params_to_url(url, params)
 
     code: int
@@ -103,12 +105,13 @@ def exponential_backoff(
         delay = min(delay * factor, max_delay) if max_delay is not None else delay * factor
 
 
-def _get_with_retry(
+def _geturl_with_retry(
     url: str,
     params: Optional[Mapping[str, Any]] = None,
-    n_retries: int = GET_N_RETRIES,
-    retry_delay: float = GET_DELAY,
-    max_delay: float = GET_MAX_DELAY,
+    n_retries: int = GETURL_N_RETRIES,
+    retry_delay: float = GETURL_DELAY,
+    max_delay: float = GETURL_MAX_DELAY,
+    logger: Optional[logging.Logger] = GETURL_LOGGER,
 ) -> tuple[bytes, int]:
     delay_gen = exponential_backoff(retry_delay, max_delay=max_delay, start_at_zero=True)
 
@@ -119,13 +122,12 @@ def _get_with_retry(
     code: int = -1
 
     for _ in range(n_retries):
-        # Wait before making request
         delay = next(delay_gen)
         time.sleep(delay)
-        if delay > 0:
+        if delay > 0 and logger is not None:
             logger.info(f"Retrying in {delay} ms")
 
-        response, code = get(url, params)
+        response, code = geturl(url, params)
 
         if code == 204:
             # No content
@@ -135,20 +137,19 @@ def _get_with_retry(
             # Success
             break
         elif code == 429:
-            # Too many requests
-            message = f"Got HTTPError 429 for {url}"
-            logger.warning(message)
+            # Too many requests. Retry anyway and lean on the backoff.
+            pass
         elif 400 <= code < 500:
             # Client error
             return response, code
         elif code == 501:
             # Not implemented. No point retrying.
-            # TODO: Should we actually be retrying  this?
+            # TODO: Should we actually be retrying this?
             return response, code
         elif 500 <= code < 600:
-            # Some other server error
-            message = f"Got HTTPError {code} for {url}"
-            logger.warning(message)
+            # Server error. Retry.
+            # TODO: Should we be retrying 503 Service Unavailable?
+            pass
         else:
             # Unexpected error
             return response, code
@@ -185,33 +186,34 @@ if TYPE_CHECKING:
     _memory: MemoryProtocol = Memory()
 
 
-def get_with_retry(
+def geturl_with_retry(
     url: str,
     params: Optional[Mapping[str, Any]] = None,
     *,
-    n_retries: int = GET_N_RETRIES,
-    retry_delay: float = GET_DELAY,
-    max_delay: float = GET_MAX_DELAY,
+    n_retries: int = GETURL_N_RETRIES,
+    retry_delay: float = GETURL_DELAY,
+    max_delay: float = GETURL_MAX_DELAY,
+    logger: Optional[logging.Logger] = GETURL_LOGGER,
     memory: Optional[MemoryProtocol] = None,
     refresh_cache: bool = False,
 ) -> tuple[int, bytes]:
     """Get the response from the given URL, with retries. Optionally use memoization."""
 
     if memory is not None:
-        memoized_fun = memory.cache(_get_with_retry)
+        memoized_fun = memory.cache(_geturl_with_retry)
         if refresh_cache:
             # don't use memoized version. just call get directly. this will also refresh the cached version
             if isinstance(memoized_fun, partial):
-                response, code = memoized_fun.func(url, params, n_retries, retry_delay, max_delay)
+                response, code = memoized_fun.func(url, params, n_retries, retry_delay, max_delay, logger)
             else:
-                (response, code), _ = memoized_fun.call(url, params, n_retries, retry_delay, max_delay)
+                (response, code), _ = memoized_fun.call(url, params, n_retries, retry_delay, max_delay, logger)
         else:
-            response, code = memoized_fun(url, params, n_retries, retry_delay, max_delay)
+            response, code = memoized_fun(url, params, n_retries, retry_delay, max_delay, logger)
         assert isinstance(response, bytes), f"Expected bytes, got {type(response)}"
         assert isinstance(code, int), f"Expected int, got {type(code)}"
     else:
         # no memoization
-        response, code = _get_with_retry(url, params, n_retries, retry_delay, max_delay)
+        response, code = _geturl_with_retry(url, params, n_retries, retry_delay, max_delay, logger)
 
     return code, response
 
@@ -263,12 +265,33 @@ ALL_CODES = cast(int, object())
 """A sentinel value to indicate that the handler should be called for all codes."""
 
 
+_T_HandlerReturn = TypeVar("_T_HandlerReturn", covariant=True)
+Handler = Callable[[int, Optional[bytes]], _T_HandlerReturn]
+Handlers = Mapping[Union[int, Slice], Handler[_T_HandlerReturn]]
+
+
+def _get_handler(
+    code: int,
+    handlers: Handlers[_T_HandlerReturn],
+) -> Optional[Handler[_T_HandlerReturn]]:
+    for key, handler in handlers.items():
+        if isinstance(key, int) and code == key:
+            return handler
+
+        if isinstance(key, (slice, Slice)):
+            key = Slice(key)
+            if code in key:
+                return handler
+
+        if key == ALL_CODES:
+            return handler
+
+    return None
+
+
 def _connection_error(s: str) -> NoReturn:
     raise ConnectionError(s)
 
-
-_T_HandlerReturn = TypeVar("_T_HandlerReturn", covariant=True)
-Handlers = Mapping[Union[int, Slice], Callable[[int, Optional[bytes]], _T_HandlerReturn]]
 
 DEFAULT_HANDLERS: Handlers[None] = {
     # Success
@@ -289,19 +312,11 @@ DEFAULT_HANDLERS: Handlers[None] = {
 
 
 @overload
-def handle_code(
-    code: int,
-    response: Optional[bytes],
-    handlers: Handlers[_T_HandlerReturn],
-) -> _T_HandlerReturn: ...
+def handle_code(code: int, response: Optional[bytes], handlers: None = None) -> None: ...
 
 
 @overload
-def handle_code(
-    code: int,
-    response: Optional[bytes],
-    handlers: None = None,
-) -> None: ...
+def handle_code(code: int, response: Optional[bytes], handlers: Handlers[_T_HandlerReturn]) -> _T_HandlerReturn: ...
 
 
 def handle_code(
@@ -316,17 +331,8 @@ def handle_code(
     if handlers is None:
         handlers = cast(Handlers[_T_HandlerReturn], DEFAULT_HANDLERS)
 
-    # Iterate through handlers in order
-    for key, handler in handlers.items():
-        if isinstance(key, int) and code == key:
-            return handler(code, response)
-
-        if isinstance(key, (slice, Slice)):
-            key = Slice(key)
-            if code in key:
-                return handler(code, response)
-
-        if key == ALL_CODES:
-            return handler(code, response)
+    handler = _get_handler(code, handlers)
+    if handler is not None:
+        return handler(code, response)
 
     return None
