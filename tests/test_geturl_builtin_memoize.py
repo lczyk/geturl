@@ -37,12 +37,12 @@ class Timer:
 
 def test_memoize_google(memory: Memory) -> None:
     with Timer() as t1:
-        code, result = geturl_with_retry("https://www.google.com", memory=memory)
+        code, _result = geturl_with_retry("https://www.google.com", memory=memory)
 
     assert code == 200
 
     with Timer() as t2:
-        code, result = geturl_with_retry("https://www.google.com", memory=memory)
+        code, _result = geturl_with_retry("https://www.google.com", memory=memory)
 
     assert code == 200
     assert t2.dt < t1.dt
@@ -56,13 +56,13 @@ def test_memoize_httpserver(memory: Memory, httpserver: pytest_httpserver.HTTPSe
     httpserver.expect_request("/").respond_with_handler(handler)
 
     with Timer() as t1:
-        code, result = geturl_with_retry(httpserver.url_for("/"), memory=memory)
+        code, _result = geturl_with_retry(httpserver.url_for("/"), memory=memory)
 
     assert t1.dt > 1
     assert code == 200
 
     with Timer() as t2:
-        code, result = geturl_with_retry(httpserver.url_for("/"), memory=memory)
+        code, _result = geturl_with_retry(httpserver.url_for("/"), memory=memory)
 
     assert t2.dt < 0.1
     assert code == 200
