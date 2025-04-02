@@ -73,7 +73,11 @@ exclude = [
     "*-env",
 ]
 line-length = 120
-# lint.ignore = ["E402", "E501", "E731", "SIM105"]
+lint.ignore = [
+    "E731", # do not assign a lambda expression, use a def
+    "E402", # module level import not at top of file
+    #
+]
 lint.select = [
     "E",   # pycodestyle
     "F",   # Pyflakes
@@ -86,6 +90,7 @@ lint.select = [
     "RUF", # ruff
     # "PL",
 ]
+output-format = 'concise'
 
 [tool.black]
 line-length = 120

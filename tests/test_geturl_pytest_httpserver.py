@@ -1,4 +1,5 @@
 import pytest
+
 from geturl import geturl_with_retry, handle_code
 
 try:

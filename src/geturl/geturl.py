@@ -9,9 +9,9 @@ bugs/updates ought to be copied back to the original repository.
 Written by Marcin Konowalczyk.
 """
 
-__version__ = "0.3.1"
+__version__ = "0.4.0"
 
-import logging
+import os
 import time
 import urllib
 import urllib.error
@@ -21,8 +21,38 @@ from collections.abc import Generator, Mapping
 from functools import partial
 from typing import TYPE_CHECKING, Any, Callable, NoReturn, Optional, Protocol, TypeVar, Union, cast, overload
 
-GETURL_LOGGER = logging.getLogger("geturl")
-"""Logger for this module."""
+if TYPE_CHECKING:
+    # import like this not to acquire a dependency on typing_extensions
+    from typing_extensions import override
+else:
+    override = lambda f: f
+
+################################################################################
+
+_logger: "Optional[logging.Logger]" = None
+
+_debug = lambda msg, *args: _logger.log(10, msg, *args, stacklevel=2) if _logger else None
+_info = lambda msg, *args: _logger.log(20, msg, *args, stacklevel=2) if _logger else None
+
+if os.environ.get("GETURL_DEBUG", False):
+    import logging
+
+    _logger = logging.getLogger("geturl")
+    handler = logging.StreamHandler()
+    # format = "[%(levelname)s/%(processName)s/%(threadName)s] %(message)s"
+    format = "[%(levelname)s] %(message)s"
+    try:
+        import colorlog
+
+        handler.setFormatter(colorlog.ColoredFormatter("%(log_color)s" + format))
+    except ImportError:
+        formatter = logging.Formatter(format)
+        handler.setFormatter(formatter)
+    _logger.addHandler(handler)
+    _logger.setLevel(logging.DEBUG)
+    _info("geturl module loaded")
+
+################################################################################
 
 GETURL_N_RETRIES = 10
 """Number of times to retry a GET request before giving up."""
@@ -34,17 +64,18 @@ GETURL_MAX_DELAY = 30.0  # s
 """Maximum delay between GET requests, in milliseconds."""
 
 __all__ = [
-    "geturl",
-    "geturl_with_retry",
-    "GETURL_N_RETRIES",
-    "GETURL_DELAY",
-    "GETURL_MAX_DELAY",
-    "GETURL_LOGGER",
-    "add_params_to_url",
-    "exponential_backoff",
-    "handle_code",
     "ALL_CODES",
     "DEFAULT_HANDLERS",
+    "GETURL_DELAY",
+    "GETURL_MAX_DELAY",
+    "GETURL_N_RETRIES",
+    "Memory",
+    "MemoryProtocol",
+    "add_params_to_url",
+    "exponential_backoff",
+    "geturl",
+    "geturl_with_retry",
+    "handle_code",
 ]
 
 
@@ -68,7 +99,7 @@ def add_params_to_url(url: str, params: Optional[Mapping[str, Any]] = None) -> s
     return url + "?" + urllib.parse.urlencode(params)
 
 
-def geturl(url: str, params: Optional[Mapping[str, Any]] = None) -> tuple[bytes, int]:
+def geturl(url: str, params: Optional[Mapping[str, Any]] = None) -> tuple[int, bytes]:
     """Make a GET request to a URL and return the response and status code."""
 
     url = add_params_to_url(url, params)
@@ -85,7 +116,7 @@ def geturl(url: str, params: Optional[Mapping[str, Any]] = None) -> tuple[bytes,
     assert isinstance(code, int), "Expected code to be int."
     assert isinstance(res, bytes), "Expected response to be bytes."
 
-    return res, code
+    return code, res
 
 
 def exponential_backoff(
@@ -115,7 +146,7 @@ def _geturl_with_retry(
     n_retries: int = GETURL_N_RETRIES,
     retry_delay: float = GETURL_DELAY,
     max_delay: float = GETURL_MAX_DELAY,
-    logger: Optional[logging.Logger] = GETURL_LOGGER,
+    logger: "Optional[logging.Logger]" = None,
 ) -> tuple[bytes, int]:
     delay_gen = exponential_backoff(retry_delay, max_delay=max_delay, start_at_zero=True)
 
@@ -131,7 +162,7 @@ def _geturl_with_retry(
         if delay > 0 and logger is not None:
             logger.info(f"Retrying in {delay} ms")
 
-        response, code = geturl(url, params)
+        code, response = geturl(url, params)
 
         if code == 204:
             # No content
@@ -167,8 +198,8 @@ def _geturl_with_retry(
     return response, code
 
 
-class _MemorizedFunc(Protocol):
-    def call(self, *args: Any, **kwargs: Any) -> Any: ...
+class MemorizedFuncProtocol(Protocol):
+    def call(self, *args: Any, **kwargs: Any) -> tuple[Any, Any]: ...
 
     """Force the execution of the function with the given arguments.
 
@@ -181,13 +212,13 @@ class _MemorizedFunc(Protocol):
 
 
 class MemoryProtocol(Protocol):
-    def cache(self, func: Callable) -> Union[_MemorizedFunc, partial]: ...
+    def cache(self, func: Callable) -> Union[MemorizedFuncProtocol, partial]: ...
 
 
 if TYPE_CHECKING:
-    from joblib import Memory
+    from joblib import Memory as _joblib_Memory  # pyright: ignore[reportMissingImports]
 
-    _memory: MemoryProtocol = Memory()
+    _memory: MemoryProtocol = _joblib_Memory()
 
 
 def geturl_with_retry(
@@ -197,7 +228,7 @@ def geturl_with_retry(
     n_retries: int = GETURL_N_RETRIES,
     retry_delay: float = GETURL_DELAY,
     max_delay: float = GETURL_MAX_DELAY,
-    logger: Optional[logging.Logger] = GETURL_LOGGER,
+    logger: "Optional[logging.Logger]" = None,
     memory: Optional[MemoryProtocol] = None,
     refresh_cache: bool = False,
 ) -> tuple[int, bytes]:
@@ -356,3 +387,113 @@ def handle_code(
         return handler(code, response)
 
     return None
+
+
+##### Memoization #####
+
+import hashlib
+import pickle
+from pathlib import Path
+
+
+class Memory:
+    """Simple non-joblib-dependent version of joblib.Memory."""
+
+    def __init__(self, location: Union[str, Path]):
+        self.location = Path(location)
+
+    def cache(self, func: Callable) -> Union[MemorizedFuncProtocol, partial]:
+        return MemorizedFunc(func, location=self.location)
+
+
+if TYPE_CHECKING:
+    _Memory: MemoryProtocol = Memory(location="/tmp/geturl_cache")
+
+
+class MemorizedFunc:
+    """Memoized function with a cache."""
+
+    def __init__(self, func: Callable, location: Union[str, Path]):
+        self.func = func
+        self.location = Path(location)
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self._cached_call(args, kwargs)
+
+    def _is_in_cache(self, call_id: str) -> bool:
+        return (self.location / call_id).exists()
+
+    def _cached_call(self, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
+        call_id = self._get_call_id(args, kwargs)
+        if self._is_in_cache(call_id):
+            try:
+                return self._load_item(call_id)
+            except Exception:
+                pass
+        return self._call(call_id, args, kwargs)
+
+    def call(self, *args: Any, **kwargs: Any) -> tuple[Any, Any]:
+        call_id = self._get_call_id(args, kwargs)
+        return self._call(call_id, args, kwargs), None
+
+    def _call(self, call_id: str, args: tuple, kwargs: dict) -> Any:
+        output = self.func(*args, **kwargs)
+        self._save_item(call_id, output)
+        return output
+
+    def _get_call_id(self, args: tuple[Any], kwargs: dict[str, Any]) -> str:
+        hasher = hashlib.md5(usedforsecurity=False)
+        hasher.update(self.func.__name__.encode())
+        hasher.update(self.func.__code__.co_code)
+        for arg in args:
+            hasher.update(str(arg).encode())
+        for key, value in kwargs.items():
+            hasher.update(str(key).encode())
+            hasher.update(str(value).encode())
+        return hasher.hexdigest()
+
+    def _save_item(self, call_id: str, item: Any) -> None:
+        path = self.location / call_id
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "wb") as f:
+            pickle.dump(item, f)
+
+    def _load_item(self, call_id: str) -> Any:
+        path = self.location / call_id
+        with open(path, "rb") as f:
+            return pickle.load(f)
+
+
+if TYPE_CHECKING:
+    _MemorizedFunc: MemorizedFuncProtocol = MemorizedFunc(lambda x: x, location="/tmp/geturl_cache")
+
+__license__ = """
+Copyright 2024 Marcin Konowalczyk
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+1.  Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+
+2.  Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+3.  Neither the name of the copyright holder nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""

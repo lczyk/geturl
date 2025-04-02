@@ -2,6 +2,7 @@ import time
 from collections.abc import Iterator
 
 import pytest
+
 from geturl import geturl_with_retry
 
 try:
