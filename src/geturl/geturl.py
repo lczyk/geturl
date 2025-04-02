@@ -25,7 +25,7 @@ Advanced example:
     ```
 
 Example with memorization:
-    
+
     ```python
     from geturl import geturl_with_retry, handle_code
     from geturl import Memory
@@ -48,7 +48,7 @@ bugs/updates ought to be copied back to the original repository.
 Written by Marcin Konowalczyk.
 """
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 
 import os
 import time

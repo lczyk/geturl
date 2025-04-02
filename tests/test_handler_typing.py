@@ -1,3 +1,4 @@
+from collections import ChainMap
 from typing import TYPE_CHECKING
 
 from geturl import DEFAULT_HANDLERS, handle_code
@@ -9,3 +10,5 @@ if TYPE_CHECKING:
     handle_code(0, b"", DEFAULT_HANDLERS)
     handle_code(0, handlers=DEFAULT_HANDLERS)
     handle_code(0, response=b"", handlers=DEFAULT_HANDLERS)
+
+    handle_code(0, b"", handlers=ChainMap({200: lambda c, r: print(r)}, DEFAULT_HANDLERS))
