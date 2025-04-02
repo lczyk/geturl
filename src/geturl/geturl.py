@@ -1,6 +1,45 @@
 """
 Single-file module for making GET requests with retries and exponential backoff.
 
+Basic example:
+
+    ```python
+    from geturl import geturl, handle_code
+
+    code, result = geturl("https://www.google.com")
+    handle_code(code)
+    ```
+
+Advanced example:
+
+    ```python
+    from geturl import geturl_with_retry, handle_code
+    from geturl import DEFAULT_HANDLERS
+    from collections import ChainMap
+    code, result = geturl_with_retry(
+        "https://www.google.com",
+        params={"q": "python"},
+        n_retries=3,
+    )
+    handle_code(code, result, handlers=ChainMap({200: lambda c, r: print("OK!")}, DEFAULT_HANDLERS))
+    ```
+
+Example with memorization:
+    
+    ```python
+    from geturl import geturl_with_retry, handle_code
+    from geturl import Memory
+
+    memory = Memory(location="/tmp/geturl_memory")
+    code, result = geturl_with_retry(
+        "https://www.google.com",
+        params={"q": "python"},
+        n_retries=3,
+        memory=memory,
+    )
+    handle_code(code, result)
+    ```
+
 This is a single-file module. It does not depend on any other files or external packages.
 Its version is tracked internally in a separate repository. It can be used as a package,
 or the file can be copied into a project and used directly. In the latter case, any
@@ -9,7 +48,7 @@ bugs/updates ought to be copied back to the original repository.
 Written by Marcin Konowalczyk.
 """
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 
 import os
 import time
