@@ -48,7 +48,7 @@ bugs/updates ought to be copied back to the original repository.
 Written by Marcin Konowalczyk.
 """
 
-__version__ = "0.4.2"
+__version__ = "0.4.3"
 
 import os
 import time
@@ -58,20 +58,15 @@ import urllib.parse
 import urllib.request
 from collections.abc import Generator, Mapping
 from functools import partial
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, NoReturn, Optional, Protocol, TypeVar, Union, cast, overload
-
-if TYPE_CHECKING:
-    # import like this not to acquire a dependency on typing_extensions
-    from typing_extensions import override
-else:
-    override = lambda f: f
 
 ################################################################################
 
 _logger: "Optional[logging.Logger]" = None
 
-_debug = lambda msg, *args: _logger.log(10, msg, *args, stacklevel=2) if _logger else None
-_info = lambda msg, *args: _logger.log(20, msg, *args, stacklevel=2) if _logger else None
+_debug = lambda msg, *args: _logger.log(10, msg, *args, stacklevel=2) if _logger else None  # noqa: E731
+_info = lambda msg, *args: _logger.log(20, msg, *args, stacklevel=2) if _logger else None  # noqa: E731
 
 if os.environ.get("GETURL_DEBUG", False):
     import logging
@@ -430,10 +425,6 @@ def handle_code(
 
 ##### Memoization #####
 
-import hashlib
-import pickle
-from pathlib import Path
-
 
 class Memory:
     """Simple non-joblib-dependent version of joblib.Memory."""
@@ -481,6 +472,8 @@ class MemorizedFunc:
         return output
 
     def _get_call_id(self, args: tuple[Any], kwargs: dict[str, Any]) -> str:
+        import hashlib
+
         hasher = hashlib.md5(usedforsecurity=False)
         hasher.update(self.func.__name__.encode())
         hasher.update(self.func.__code__.co_code)
@@ -492,12 +485,16 @@ class MemorizedFunc:
         return hasher.hexdigest()
 
     def _save_item(self, call_id: str, item: Any) -> None:
+        import pickle
+
         path = self.location / call_id
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as f:
             pickle.dump(item, f)
 
     def _load_item(self, call_id: str) -> Any:
+        import pickle
+
         path = self.location / call_id
         with open(path, "rb") as f:
             return pickle.load(f)

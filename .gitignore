@@ -1,7 +1,10 @@
 __pycache__
 .mypy_cache
 .ruff_cache
+.pytest_cache
 .tox
 dist
+.venv
 
 _test_memory
+.python-version

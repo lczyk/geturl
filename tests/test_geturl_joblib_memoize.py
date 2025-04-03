@@ -1,3 +1,4 @@
+import sys
 import time
 from collections.abc import Iterator
 
@@ -16,6 +17,12 @@ try:
 except ImportError:
     pytest.skip("pytest-httpserver is not installed", allow_module_level=True)
 
+# if joblib version is less than 1.5.0 and were in pyton 3.14 or greater, skip the test
+# there is a bug which is resolved in joblib 1.5.0
+parse_version = lambda version: tuple(map(int, version.split(".")))  # noqa: E731
+
+if parse_version(joblib.__version__) < (1, 5) and sys.version_info >= (3, 14):
+    pytest.skip("joblib version < 1.5.0 and python version >= 3.14", allow_module_level=True)
 
 @pytest.fixture
 def memory() -> Iterator[joblib.Memory]:
