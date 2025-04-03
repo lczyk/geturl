@@ -1,7 +1,7 @@
 # geturl
 
 [![Single file](https://img.shields.io/badge/single%20file%20-%20purple)](https://raw.githubusercontent.com/MarcinKonowalczyk/geturl/main/src/geturl/geturl.py)
-<!-- [![test](https://github.com/MarcinKonowalczyk/type_conversion_dict/actions/workflows/test.yml/badge.svg)](https://github.com/MarcinKonowalczyk/type_conversion_dict/actions/workflows/test.yml) -->
+[![test](https://github.com/MarcinKonowalczyk/geturl/actions/workflows/test.yml/badge.svg)](https://github.com/MarcinKonowalczyk/geturl/actions/workflows/test.yml)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
