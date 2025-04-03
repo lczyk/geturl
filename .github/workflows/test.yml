@@ -32,7 +32,6 @@ jobs:
         run: |
           pip install uv
           uv tool install tox --with tox-uv
-          uv tool update-shell
 
       - name: Run tox
-        run: uv run tox
+        run: uv tool run tox
