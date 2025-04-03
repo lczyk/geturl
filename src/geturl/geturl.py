@@ -425,16 +425,12 @@ class MemorizedFunc:
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         return self._cached_call(args, kwargs)
 
-    def _is_in_cache(self, call_id: str) -> bool:
-        return (self.location / call_id).exists()
-
     def _cached_call(self, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
         call_id = self._get_call_id(args, kwargs)
-        if self._is_in_cache(call_id):
-            try:
-                return self._load_item(call_id)
-            except Exception:
-                pass
+        try:
+            return self._load_item(call_id)
+        except Exception:
+            pass
         return self._call(call_id, args, kwargs)
 
     def call(self, *args: Any, **kwargs: Any) -> tuple[Any, Any]:
