@@ -34,4 +34,4 @@ jobs:
           uv tool install tox --with tox-uv
 
       - name: Run tox
-        run: tox
+        run: uv run tox
