@@ -24,6 +24,7 @@ parse_version = lambda version: tuple(map(int, version.split(".")))  # noqa: E73
 if parse_version(joblib.__version__) < (1, 5) and sys.version_info >= (3, 14):
     pytest.skip("joblib version < 1.5.0 and python version >= 3.14", allow_module_level=True)
 
+
 @pytest.fixture
 def memory() -> Iterator[joblib.Memory]:
     import pathlib

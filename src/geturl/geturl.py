@@ -48,9 +48,8 @@ bugs/updates ought to be copied back to the original repository.
 Written by Marcin Konowalczyk.
 """
 
-__version__ = "0.4.3"
+__version__ = "0.4.4"
 
-import os
 import time
 import urllib
 import urllib.error
@@ -61,32 +60,8 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, NoReturn, Optional, Protocol, TypeVar, Union, cast, overload
 
-################################################################################
-
-_logger: "Optional[logging.Logger]" = None
-
-_debug = lambda msg, *args: _logger.log(10, msg, *args, stacklevel=2) if _logger else None  # noqa: E731
-_info = lambda msg, *args: _logger.log(20, msg, *args, stacklevel=2) if _logger else None  # noqa: E731
-
-if os.environ.get("GETURL_DEBUG", False):
+if TYPE_CHECKING:
     import logging
-
-    _logger = logging.getLogger("geturl")
-    handler = logging.StreamHandler()
-    # format = "[%(levelname)s/%(processName)s/%(threadName)s] %(message)s"
-    format = "[%(levelname)s] %(message)s"
-    try:
-        import colorlog
-
-        handler.setFormatter(colorlog.ColoredFormatter("%(log_color)s" + format))
-    except ImportError:
-        formatter = logging.Formatter(format)
-        handler.setFormatter(formatter)
-    _logger.addHandler(handler)
-    _logger.setLevel(logging.DEBUG)
-    _info("geturl module loaded")
-
-################################################################################
 
 GETURL_N_RETRIES = 10
 """Number of times to retry a GET request before giving up."""
