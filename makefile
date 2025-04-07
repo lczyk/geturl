@@ -14,17 +14,17 @@ build_sdist: clean
 	flit build --format sdist
 
 list_sdist: build_sdist
-	tar -ztvf dist/*.tar.gz
+	tar -vtzf dist/*.tar.gz
 
 install: build_wheel
 	pip install --force-reinstall dist/*.whl
 
 clean:
-	rm -rf .mypy_cache .pytest_cache .ruff_cache .tox
-	rm -rf htmlcov .coverage*
-	rm -rf build dist
-	find . -name '*.egg-info' -type d | xargs rm -rf  
-	find . -name '__pycache__' -type d | xargs rm -rf  
+	@rm -rf .mypy_cache .pytest_cache .ruff_cache .tox
+	@rm -rf htmlcov .coverage*
+	@rm -rf build dist
+	@find . -name '*.egg-info' -type d | xargs rm -rf  
+	@find . -name '__pycache__' -type d | xargs rm -rf  
 
 test:
 	pytest -v
