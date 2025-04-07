@@ -2,6 +2,10 @@
 requires = ["flit_core >=3.2,<4"]
 build-backend = "flit_core.buildapi"
 
+[tool.flit.sdist]
+include = ["doc/"]
+exclude = [".github", ".gitignore"]
+
 [project]
 name = "geturl"
 authors = [{ name = "Marcin Konowalczyk", email = "marcin.konow@lczyk.xyz" }]
@@ -12,7 +16,7 @@ requires-python = ">=3.9"
 dependencies = []
 
 [project.urls]
-home = "https://github.com/marcinkonowalczyk/..."
+home = "https://github.com/marcinkonowalczyk/geturl"
 
 # coverage setup
 [tool.coverage.run]

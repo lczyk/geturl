@@ -5,13 +5,13 @@
 all: build_wheel list_wheel
 
 build_wheel: clean
-	python -m build --wheel . 
+	flit build  --format wheel
 
 list_wheel: build_wheel
 	unzip -l dist/*.whl
 
 build_sdist: clean
-	python -m build --sdist .
+	flit build --format sdist
 
 list_sdist: build_sdist
 	tar -ztvf dist/*.tar.gz
@@ -20,7 +20,7 @@ install: build_wheel
 	pip install --force-reinstall dist/*.whl
 
 clean:
-	rm -rf .mypy_cache .pytest_cache .ruff_cache .tox .venv
+	rm -rf .mypy_cache .pytest_cache .ruff_cache .tox
 	rm -rf htmlcov .coverage*
 	rm -rf build dist
 	find . -name '*.egg-info' -type d | xargs rm -rf  
