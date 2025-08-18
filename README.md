@@ -64,7 +64,7 @@ Or even better, without checking out the repository:
 curl https://raw.githubusercontent.com/lczyk/geturl/main/src/geturl/geturl.py > src/your_package/_geturl.py
 ```
 
-Note that like this *you take ownership of the code* and you are responsible for keeping it up-to-date. If you change it that's fine (keep the license pls). That's the point here. You can also copy the code to your project and modify it as you wish.
+Note that like this *you take stewardship of the code* and you are responsible for keeping it up-to-date. If you change it that's fine (keep the license pls). That's the point here. You can also copy the code to your project and modify it as you wish.
 
 If you want you can also build and install it as a package, but then the source lives somewhere else. That might be what you want though. 🤷‍♀️
 
