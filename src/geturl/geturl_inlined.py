@@ -1,32 +1,28 @@
 """
 Micro inlined version of geturl with all the imports for easy copy-pasting.
-"""
 
-import urllib
-import urllib.error
-import urllib.parse
-import urllib.request
-from collections.abc import Mapping
-from typing import Optional
+NOTE: Slightly different typing to avoid top-level imports.
+"""
 
 
 # geturl from https://github.com/lczyk/geturl 0.4.5
 def geturl(
     url: str,
-    params: Optional[Mapping[str, object]] = None,
-    headers: Optional[Mapping[str, str]] = None,
+    params: "dict[str, object] | None" = None,
+    headers: "dict[str, str] | None" = None,
 ) -> tuple[int, bytes]:
     """Make a GET request to a URL and return the response and status code."""
+
+    import urllib
+    import urllib.error
+    import urllib.parse
+    import urllib.request
 
     if params is not None:
         if "?" in url:
             params = dict(params)  # make a modifiable copy
             existing_params = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
-            for p_key, p_value in existing_params.items():
-                if p_key in params:
-                    # If the key is already in params, don't overwrite it
-                    continue
-                params[p_key] = p_value
+            params = {**existing_params, **params}  # params take precedence
             url = url.split("?")[0]
         url = url + "?" + urllib.parse.urlencode(params)
 
