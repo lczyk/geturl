@@ -48,7 +48,16 @@ bugs/updates ought to be copied back to the original repository.
 Written by Marcin Konowalczyk.
 """
 
-__version__ = "0.4.4"
+# spellchecker: ignore Marcin Konowalczyk lczyk
+
+__version__ = "0.4.5"
+
+__author__ = "Marcin Konowalczyk"
+
+__changelog__ = [
+    (__version__, "added headers kwarg", "@lczyk"),
+    ("0.4.4", "changelog started", "@lczyk"),
+]
 
 import time
 import urllib
@@ -108,13 +117,22 @@ def add_params_to_url(url: str, params: Optional[Mapping[str, Any]] = None) -> s
     return url + "?" + urllib.parse.urlencode(params)
 
 
-def geturl(url: str, params: Optional[Mapping[str, Any]] = None) -> tuple[int, bytes]:
+def geturl(
+    url: str,
+    params: Optional[Mapping[str, Any]] = None,
+    headers: Optional[Mapping[str, str]] = None,
+) -> tuple[int, bytes]:
     """Make a GET request to a URL and return the response and status code."""
 
     url = add_params_to_url(url, params)
 
+    request = urllib.request.Request(url)
+    if headers is not None:
+        for key, value in headers.items():
+            request.add_header(key, value)
+
     try:
-        with urllib.request.urlopen(url) as r:
+        with urllib.request.urlopen(request) as r:
             code = r.getcode()
             res = r.read()
 
@@ -152,6 +170,7 @@ def exponential_backoff(
 def _geturl_with_retry(
     url: str,
     params: Optional[Mapping[str, Any]] = None,
+    headers: Optional[Mapping[str, str]] = None,
     n_retries: int = GETURL_N_RETRIES,
     retry_delay: float = GETURL_DELAY,
     max_delay: float = GETURL_MAX_DELAY,
@@ -171,7 +190,7 @@ def _geturl_with_retry(
         if delay > 0 and logger is not None:
             logger.info(f"Retrying in {delay} ms")
 
-        code, response = geturl(url, params)
+        code, response = geturl(url, params, headers)
 
         if code == 204:
             # No content
@@ -233,6 +252,7 @@ if TYPE_CHECKING:
 def geturl_with_retry(
     url: str,
     params: Optional[Mapping[str, Any]] = None,
+    headers: Optional[Mapping[str, str]] = None,
     *,
     n_retries: int = GETURL_N_RETRIES,
     retry_delay: float = GETURL_DELAY,
@@ -248,16 +268,16 @@ def geturl_with_retry(
         if refresh_cache:
             # don't use memoized version. just call get directly. this will also refresh the cached version
             if isinstance(memoized_fun, partial):
-                response, code = memoized_fun.func(url, params, n_retries, retry_delay, max_delay, logger)
+                response, code = memoized_fun.func(url, params, headers, n_retries, retry_delay, max_delay, logger)
             else:
-                (response, code), _ = memoized_fun.call(url, params, n_retries, retry_delay, max_delay, logger)
+                (response, code), _ = memoized_fun.call(url, params, headers, n_retries, retry_delay, max_delay, logger)
         else:
-            response, code = memoized_fun(url, params, n_retries, retry_delay, max_delay, logger)
+            response, code = memoized_fun(url, params, headers, n_retries, retry_delay, max_delay, logger)
         assert isinstance(response, bytes), f"Expected bytes, got {type(response)}"
         assert isinstance(code, int), f"Expected int, got {type(code)}"
     else:
         # no memoization
-        response, code = _geturl_with_retry(url, params, n_retries, retry_delay, max_delay, logger)
+        response, code = _geturl_with_retry(url, params, headers, n_retries, retry_delay, max_delay, logger)
 
     return code, response
 

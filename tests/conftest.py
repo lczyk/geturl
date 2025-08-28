@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 import pytest
 
-__project_root = Path(__file__).resolve().parents[1]
-sys.path.append(str(__project_root / "src"))
+__project_root__ = Path(__file__).resolve().parents[1]
+sys.path.append(str(__project_root__ / "src"))
 
 
 ##========================================================================================================

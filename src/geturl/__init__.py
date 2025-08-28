@@ -6,6 +6,8 @@ from .geturl import (
     GETURL_N_RETRIES,  # noqa: F401
     Memory,  # noqa: F401
     MemoryProtocol,  # noqa: F401
+    __author__,  # noqa: F401
+    __changelog__,  # noqa: F401
     __doc__,  # noqa: F401
     __license__,  # noqa: F401
     __version__,  # noqa: F401
